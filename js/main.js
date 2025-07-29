@@ -3,9 +3,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const inputSueldo = document.querySelector("#inputSueldo");
   const selectCuotas = document.querySelector("#cuotas");
   const resultado = document.querySelector("#resultado");
-  const btnVerSimulaciones = document.querySelector("#verSimulaciones");
+  const btnVerHistorial = document.querySelector("#verHistorial");
+  const historialDiv = document.querySelector("#historial");
 
-  // Evento cuando se envía el formulario
+  // Evento al enviar el formulario
   formulario.addEventListener("submit", (e) => {
     e.preventDefault();
 
@@ -14,7 +15,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const TNA = 45;
     const tasaMensual = TNA / 12 / 100;
 
-    // Validación del sueldo ingresado
     if (!sueldo || sueldo < 0) {
       resultado.textContent = "⚠️ Por favor, ingresa un sueldo válido.";
       resultado.classList.remove("text-green-400");
@@ -29,16 +29,14 @@ document.addEventListener("DOMContentLoaded", () => {
       resultado.classList.remove("text-green-400");
       resultado.classList.add("text-red-400");
       return;
-    } else if (sueldo >= 800000 && sueldo < 1500000) {
+    } else if (sueldo < 1500000) {
       monto = 10000000;
     } else {
       monto = 20000000;
     }
 
-    // Cálculo de la cuota mensual
     const cuota = (monto * tasaMensual) / (1 - Math.pow(1 + tasaMensual, -cuotas));
 
-    // Mensaje para mostrar en pantalla
     const textoResultado = `
 ✅ CREDITO APROBADO
 Monto aprobado: $${monto.toLocaleString()}
@@ -51,8 +49,8 @@ Valor estimado de cada cuota: $${Math.round(cuota).toLocaleString()}
     resultado.classList.remove("text-red-400");
     resultado.classList.add("text-green-400");
 
-    // Guardar la simulación en localStorage
-    const simulacion = {
+    // Guardar nueva simulación al historial
+    const nuevaSimulacion = {
       sueldo,
       cuotas,
       monto,
@@ -60,28 +58,36 @@ Valor estimado de cada cuota: $${Math.round(cuota).toLocaleString()}
       fecha: new Date().toLocaleString()
     };
 
-    localStorage.setItem("ultimaSimulacion", JSON.stringify(simulacion));
+    const historial = JSON.parse(localStorage.getItem("historialSimulaciones")) || [];
+    historial.push(nuevaSimulacion);
+    localStorage.setItem("historialSimulaciones", JSON.stringify(historial));
   });
 
-  // Evento para mostrar la última simulación guardada
-  btnVerSimulaciones.addEventListener("click", () => {
-    const data = JSON.parse(localStorage.getItem("ultimaSimulacion"));
+  // Ver historial completo
+  btnVerHistorial.addEventListener("click", () => {
+    const historial = JSON.parse(localStorage.getItem("historialSimulaciones")) || [];
 
-    if (data) {
-      resultado.textContent = `
-📌 Última simulación guardada:
-🧾 Sueldo: $${data.sueldo.toLocaleString()}
-📅 Cuotas: ${data.cuotas} meses
-💰 Monto aprobado: $${data.monto.toLocaleString()}
-📈 Cuota estimada: $${data.cuota.toLocaleString()}
-🕒 Fecha: ${data.fecha}
-      `;
-      resultado.classList.remove("text-red-400");
-      resultado.classList.add("text-green-400");
-    } else {
-      resultado.textContent = "⚠️ No hay ninguna simulación guardada todavía.";
-      resultado.classList.remove("text-green-400");
-      resultado.classList.add("text-red-400");
+    if (historial.length === 0) {
+      historialDiv.innerHTML = "<p class='text-red-400'>⚠️ No hay simulaciones guardadas aún.</p>";
+      return;
     }
+
+    historialDiv.innerHTML = ""; 
+
+    historial.reverse().forEach((sim, index) => {
+      const item = document.createElement("div");
+      item.classList.add("bg-[#264532]", "p-4", "rounded", "shadow");
+
+      item.innerHTML = `
+        <p class="text-sm font-medium mb-1"> <strong>Simulación #${historial.length - index}</strong></p>
+        <p> Sueldo: $${sim.sueldo.toLocaleString()}</p>
+        <p> Monto aprobado: $${sim.monto.toLocaleString()}</p>
+        <p> Cuotas: ${sim.cuotas} meses</p>
+        <p> Valor cuota: $${sim.cuota.toLocaleString()}</p>
+        <p> Fecha: ${sim.fecha}</p>
+      `;
+
+      historialDiv.appendChild(item);
+    });
   });
 });
