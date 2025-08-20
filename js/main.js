@@ -1,93 +1,127 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const formulario = document.querySelector("#formulario");
-  const inputSueldo = document.querySelector("#inputSueldo");
-  const selectCuotas = document.querySelector("#cuotas");
-  const resultado = document.querySelector("#resultado");
-  const btnVerHistorial = document.querySelector("#verHistorial");
-  const historialDiv = document.querySelector("#historial");
+// ELEMENTOS DEL DOM
+const formulario = document.querySelector("#formulario");
+const inputSueldo = document.querySelector("#inputSueldo");
+const selectCuotas = document.querySelector("#cuotas");
+const btnVerHistorial = document.querySelector("#verHistorial");
+const historialDiv = document.querySelector("#historial");
 
-  // Evento al enviar el formulario
-  formulario.addEventListener("submit", (e) => {
-    e.preventDefault();
+//  Envío del formulario
+formulario.addEventListener("submit", async (e) => {
+  e.preventDefault();
 
-    const sueldo = Number(inputSueldo.value.trim());
-    const cuotas = Number(selectCuotas.value);
-    const TNA = 45;
-    const tasaMensual = TNA / 12 / 100;
+  const sueldo = Number(inputSueldo.value.trim());
+  const cuotas = Number(selectCuotas.value);
 
-    if (!sueldo || sueldo < 0) {
-      resultado.textContent = "⚠️ Por favor, ingresa un sueldo válido.";
-      resultado.classList.remove("text-green-400");
-      resultado.classList.add("text-red-400");
-      return;
-    }
+  if (!esSueldoValido(sueldo)) {
+    mostrarAlertaError("⚠️ Por favor, ingresa un sueldo válido.");
+    return;
+  }
 
-    let monto = 0;
+  const monto = calcularMonto(sueldo);
+  if (monto === 0) {
+    mostrarAlertaError("❌ CRÉDITO NO APROBADO. El sueldo mínimo requerido es de $800.000.");
+    return;
+  }
 
-    if (sueldo < 800000) {
-      resultado.textContent = "❌ CREDITO NO APROBADO. El sueldo mínimo requerido es de $800.000.";
-      resultado.classList.remove("text-green-400");
-      resultado.classList.add("text-red-400");
-      return;
-    } else if (sueldo < 1500000) {
-      monto = 10000000;
-    } else {
-      monto = 20000000;
-    }
+  const TNA = await obtenerTNA();
+  if (!TNA) {
+    mostrarAlertaError("❌ Error al obtener la tasa de interés.");
+    return;
+  }
 
-    const cuota = (monto * tasaMensual) / (1 - Math.pow(1 + tasaMensual, -cuotas));
+  const cuota = calcularCuota(monto, cuotas, TNA);
 
-    const textoResultado = `
-✅ CREDITO APROBADO
-Monto aprobado: $${monto.toLocaleString()}
-TNA: ${TNA}%
-Cuotas: ${cuotas} meses
-Valor estimado de cada cuota: $${Math.round(cuota).toLocaleString()}
-    `;
-
-    resultado.textContent = textoResultado;
-    resultado.classList.remove("text-red-400");
-    resultado.classList.add("text-green-400");
-
-    // Guardar nueva simulación al historial
-    const nuevaSimulacion = {
-      sueldo,
-      cuotas,
-      monto,
-      cuota: Math.round(cuota),
-      fecha: new Date().toLocaleString()
-    };
-
-    const historial = JSON.parse(localStorage.getItem("historialSimulaciones")) || [];
-    historial.push(nuevaSimulacion);
-    localStorage.setItem("historialSimulaciones", JSON.stringify(historial));
-  });
-
-  // Ver historial completo
-  btnVerHistorial.addEventListener("click", () => {
-    const historial = JSON.parse(localStorage.getItem("historialSimulaciones")) || [];
-
-    if (historial.length === 0) {
-      historialDiv.innerHTML = "<p class='text-red-400'>⚠️ No hay simulaciones guardadas aún.</p>";
-      return;
-    }
-
-    historialDiv.innerHTML = ""; 
-
-    historial.reverse().forEach((sim, index) => {
-      const item = document.createElement("div");
-      item.classList.add("bg-[#264532]", "p-4", "rounded", "shadow");
-
-      item.innerHTML = `
-        <p class="text-sm font-medium mb-1"> <strong>Simulación #${historial.length - index}</strong></p>
-        <p> Sueldo: $${sim.sueldo.toLocaleString()}</p>
-        <p> Monto aprobado: $${sim.monto.toLocaleString()}</p>
-        <p> Cuotas: ${sim.cuotas} meses</p>
-        <p> Valor cuota: $${sim.cuota.toLocaleString()}</p>
-        <p> Fecha: ${sim.fecha}</p>
-      `;
-
-      historialDiv.appendChild(item);
-    });
-  });
+  mostrarAlertaExito(monto, cuotas, TNA, cuota);
+  guardarSimulacion(sueldo, monto, cuotas, cuota);
 });
+
+// Ver historial
+btnVerHistorial.addEventListener("click", mostrarHistorial);
+
+// FUNCIONES
+function esSueldoValido(sueldo) {
+  return sueldo && sueldo > 0;
+}
+
+function calcularMonto(sueldo) {
+  if (sueldo < 800000) return 0;
+  if (sueldo < 1500000) return 10000000;
+  return 20000000;
+}
+
+function calcularCuota(monto, cuotas, TNA) {
+  const tasaMensual = TNA / 12 / 100;
+  return (monto * tasaMensual) / (1 - Math.pow(1 + tasaMensual, -cuotas));
+}
+
+async function obtenerTNA() {
+  try {
+    const res = await fetch("https://68a0b4026e38a02c5819756f.mockapi.io/tasas");
+    const data = await res.json();
+    return data[0].TNA;
+  } catch {
+    return null;
+  }
+}
+
+function guardarSimulacion(sueldo, monto, cuotas, cuota) {
+  const simulacion = {
+    sueldo,
+    monto,
+    cuotas,
+    cuota: Math.round(cuota),
+    fecha: new Date().toLocaleString()
+  };
+  const historial = JSON.parse(localStorage.getItem("historialSimulaciones")) || [];
+  historial.push(simulacion);
+  localStorage.setItem("historialSimulaciones", JSON.stringify(historial));
+}
+
+function mostrarHistorial() {
+  const historial = JSON.parse(localStorage.getItem("historialSimulaciones")) || [];
+  historialDiv.innerHTML = "";
+
+  if (historial.length === 0) {
+    historialDiv.innerHTML = "<p class='text-red-400'>⚠️ No hay simulaciones guardadas aún.</p>";
+    return;
+  }
+
+  historial.reverse().forEach((sim, index) => {
+    const item = document.createElement("div");
+    item.classList.add("bg-[#264532]", "p-4", "rounded", "shadow");
+
+    item.innerHTML = `
+      <p class="text-sm font-medium mb-1"><strong>Simulación #${historial.length - index}</strong></p>
+      <p>Sueldo: $${sim.sueldo.toLocaleString()}</p>
+      <p>Monto aprobado: $${sim.monto.toLocaleString()}</p>
+      <p>Cuotas: ${sim.cuotas} meses</p>
+      <p>Valor cuota: $${sim.cuota.toLocaleString()}</p>
+      <p>Fecha: ${sim.fecha}</p>
+    `;
+    historialDiv.appendChild(item);
+  });
+}
+
+// FUNCIONES con SweetAlert2
+function mostrarAlertaError(mensaje) {
+  Swal.fire({
+    icon: "error",
+    title: "¡Atención!",
+    text: mensaje,
+    confirmButtonColor: "#d33"
+  });
+}
+
+function mostrarAlertaExito(monto, cuotas, TNA, cuota) {
+  Swal.fire({
+    icon: "success",
+    title: "✅ CRÉDITO APROBADO",
+    html: `
+      <p><strong>Monto aprobado:</strong> $${monto.toLocaleString()}</p>
+      <p><strong>TNA:</strong> ${TNA}%</p>
+      <p><strong>Cuotas:</strong> ${cuotas} meses</p>
+      <p><strong>Valor estimado de cada cuota:</strong> $${Math.round(cuota).toLocaleString()}</p>
+    `,
+    confirmButtonColor: "#3085d6"
+  });
+}
